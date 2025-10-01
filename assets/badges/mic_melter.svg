@@ -1,0 +1,6 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>
+<rect width='160' height='160' rx='16' fill='#0b0b12'/>
+<circle cx='80' cy='60' r='28' fill='#ff00e6'/>
+<rect x='74' y='88' width='12' height='40' fill='#ff00e6'/>
+<text x='80' y='145' font-size='16' text-anchor='middle' fill='#ff00e6' font-family='monospace'>MIC MELTER</text>
+</svg>

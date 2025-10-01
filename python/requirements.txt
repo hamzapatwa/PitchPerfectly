@@ -1,0 +1,6 @@
+numpy
+librosa
+soundfile
+# essentia==2.1b6  # optional if available in your env
+# tensorflow
+# crepe

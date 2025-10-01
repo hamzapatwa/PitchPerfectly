@@ -1,0 +1,5 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>
+<rect width='160' height='160' rx='16' fill='#0b0b12'/>
+<path d='M40 60 L80 20 L120 60 L80 100 Z' fill='#ffd700'/>
+<text x='80' y='130' font-size='16' text-anchor='middle' fill='#ffd700' font-family='monospace'>COMBO KING</text>
+</svg>

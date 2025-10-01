@@ -1,0 +1,5 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>
+<rect width='160' height='160' rx='16' fill='#0b0b12'/>
+<path d='M20 110 Q80 50 140 110' fill='none' stroke='#39ff14' stroke-width='6'/>
+<text x='80' y='140' font-size='14' text-anchor='middle' fill='#39ff14' font-family='monospace'>SMOOTH OP</text>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'>
+<rect width='160' height='160' rx='16' fill='#0b0b12'/>
+<circle cx='80' cy='80' r='60' fill='none' stroke='#00e5ff' stroke-width='6'/>
+<text x='80' y='90' font-size='16' text-anchor='middle' fill='#00e5ff' font-family='monospace'>ON-BEAT</text>
+<text x='80' y='110' font-size='14' text-anchor='middle' fill='#00e5ff' font-family='monospace'>BANDIT</text>
+</svg>
