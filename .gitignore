@@ -1,0 +1,11 @@
+backend/node_modules/
+frontend/node_modules/
+python/.venv/
+python/demo_tracks/
+python/reference_data/
+backend/uploads/
+backend/references/
+backend/sessions/
+backend/leaderboard/
+backend/karaoke.db
+
