@@ -9,12 +9,12 @@ services:
     volumes:
       # Persist songs across container restarts
       - ./songs:/app/songs
-      # Persist database
-      - karaoke-db:/app/backend/karaoke.db
       # Persist sessions
       - ./sessions:/app/sessions
       # Persist uploads
       - ./backend/uploads:/app/backend/uploads
+      # Database storage (named volume to avoid node_modules conflicts)
+      - db-storage:/app/backend
     environment:
       - DEVICE=cpu
       - PORT=8080
@@ -29,5 +29,5 @@ services:
       start_period: 40s
 
 volumes:
-  karaoke-db:
-
+  db-storage:
+    driver: local
