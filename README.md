@@ -20,9 +20,8 @@ Plays YouTube karaoke videos with professional-grade vocal analysis.
 - **NLMS echo cancellation** for speaker playback
 
 ### 📊 **Enhanced Scoring**
-- **65% Pitch** - Key-shift forgiveness, octave error detection
-- **25% Rhythm** - Beat-accurate timing with ±50ms tolerance
-- **10% Energy** - Loudness matching with anti-shout caps
+- **70% Pitch** - Key-shift forgiveness, octave error detection
+- **30% Rhythm** - Beat-accurate timing with ±50ms tolerance
 - **Real-time HUD** - Note lane, cents error bar, beat LEDs, combo counter
 
 ### 🚀 **Performance**
@@ -133,7 +132,7 @@ open http://localhost:8080
 │                                                                 │
 │  Frontend (Browser)                                             │
 │  ├─ VideoKaraokePlayer.jsx (video playback + controls)         │
-│  ├─ LiveHUD.jsx (real-time scoring: 65/25/10)                 │
+│  ├─ LiveHUD.jsx (real-time scoring: 70/30)                 │
 │  └─ pitch-processor-aec.js (NLMS echo cancellation)            │
 │                                                                 │
 │  Backend (Node.js)                                              │
@@ -159,18 +158,13 @@ open http://localhost:8080
 ## 🎯 Scoring System
 
 ### Enhanced Scoring
-- **65% Pitch Accuracy**
+- **70% Pitch Accuracy**
   - ±10 cents = Perfect (100%)
   - ±25 cents = Good (90%)
   - ±50 cents = Acceptable (70%)
   - Key-shift forgiveness (±100-200 cents)
 
-- **25% Rhythm**
-  - ±50ms = Perfect (100%)
-  - ±100ms = Good (80%)
-  - ±200ms = Acceptable (50%)
-
-- **10% Energy**
+- **30% Energy**
   - ±6dB loudness matching
   - Anti-shout caps
 
@@ -193,9 +187,8 @@ open http://localhost:8080
 Edit `frontend/src/components/LiveHUD.jsx`:
 ```javascript
 const SCORING_CONFIG = {
-  PITCH_WEIGHT: 0.65,      // 65% pitch
-  RHYTHM_WEIGHT: 0.25,     // 25% rhythm
-  ENERGY_WEIGHT: 0.10,     // 10% energy
+  PITCH_WEIGHT: 0.70,      // 70% pitch
+  ENERGY_WEIGHT: 0.30,     // 30% energy
 
   PITCH_PERFECT_CENTS: 10,
   PITCH_GOOD_CENTS: 25,
@@ -407,7 +400,7 @@ python -c "import torch; print(torch.cuda.is_available() if torch.cuda.is_availa
 - ✅ Demucs v4 vocal separation
 - ✅ DTW alignment for sync handling
 - ✅ NLMS echo cancellation (speaker mode)
-- ✅ Enhanced scoring (65/25/10)
+- ✅ Enhanced scoring (70/30)
 - ✅ Key-shift forgiveness
 - ✅ Post-run refinement
 - ✅ Comprehensive documentation
