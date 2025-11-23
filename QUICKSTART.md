@@ -94,11 +94,11 @@ Open your browser to: **http://localhost:8080**
 ### Option 2: Via Command Line
 
 ```bash
-# Upload
+**# Upload
 curl -X POST http://localhost:8080/songs/upload \
   -F "song_name=My Favorite Song" \
   -F "karaoke_video=@/path/to/karaoke.mp4" \
-  -F "original_audio=@/path/to/original.wav"
+  -F "original_audio=@/path/to/original.wav"**
 
 # Response: {"song_id": "abc-123", "status": "processing"}
 

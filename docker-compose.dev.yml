@@ -1,0 +1,58 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: karaoke-backend-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount source code for live reloading
+      - ./backend:/app/backend
+      - ./python:/app/python
+      - ./schemas:/app/schemas
+      # Persist data
+      - ./songs:/app/songs
+      - ./sessions:/app/sessions
+      - ./backend/uploads:/app/backend/uploads
+      - db-storage:/app/backend
+      # Use named volume for node_modules to avoid conflicts
+      - backend-node-modules:/app/backend/node_modules
+    environment:
+      - DEVICE=cpu
+      - PORT=8080
+      - NODE_ENV=development
+    command: /bin/bash -c "echo '🔧 Installing backend dependencies...' && cd /app/backend && npm install && echo '🚀 Starting backend dev server on port 8080...' && npm run dev"
+    working_dir: /app/backend
+    restart: unless-stopped
+    # Healthcheck disabled in dev mode - not critical for development
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: karaoke-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for live reloading
+      - ./frontend:/app/frontend
+      # Use named volume for node_modules to avoid conflicts
+      - frontend-node-modules:/app/frontend/node_modules
+    environment:
+      - NODE_ENV=development
+      - VITE_PROXY_TARGET=http://backend:8080
+    command: /bin/bash -c "echo '🔧 Installing frontend dependencies...' && cd /app/frontend && npm install && echo '🚀 Starting frontend dev server on port 3000...' && npm run dev -- --host 0.0.0.0"
+    working_dir: /app/frontend
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db-storage:
+    driver: local
+  backend-node-modules:
+    driver: local
+  frontend-node-modules:
+    driver: local
+

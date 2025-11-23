@@ -61,6 +61,48 @@ open http://localhost:8080
 
 ---
 
+### 🔧 Development Mode with Docker
+
+**For active development with hot-reloading:**
+
+```bash
+# Start development environment
+./docker-dev.sh
+
+# Or manually:
+docker-compose -f docker-compose.dev.yml up
+```
+
+This runs:
+- **Frontend**: Vite dev server on `http://localhost:3000` (hot module replacement)
+- **Backend**: Node.js with `--watch` on `http://localhost:8080` (auto-restart on changes)
+
+**Features:**
+- ✅ Source code mounted as volumes (edit files locally, see changes instantly)
+- ✅ Frontend hot-reloads on save
+- ✅ Backend auto-restarts on file changes
+- ✅ Separate containers for frontend and backend
+- ✅ All data persists (songs, database, sessions)
+
+**Useful commands:**
+```bash
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# View backend logs only
+docker-compose -f docker-compose.dev.yml logs -f backend
+
+# View frontend logs only
+docker-compose -f docker-compose.dev.yml logs -f frontend
+
+# Stop development environment
+docker-compose -f docker-compose.dev.yml down
+```
+
+**Note**: For local development without Docker, see the Native Installation section below.
+
+---
+
 ### 💻 Option 2: Native Installation
 
 ### Prerequisites
@@ -320,7 +362,7 @@ cat ../songs/demo-test/reference.json | jq '.warp_T.quality'
 ## 🐛 Troubleshooting
 
 ### Common Issues
-
+****
 **"Preprocessing slow"**
 ```bash
 # Ensure PyTorch is properly installed
@@ -343,7 +385,7 @@ python -c "import torch; print(torch.cuda.is_available() if torch.cuda.is_availa
 **"Echo cancellation not working"**
 - Reduce karaoke volume
 - Increase distance from speakers
-- Use headphones (bypass AEC)
+- Use headphones (bypass AEC)****
 - Adjust AEC step size in pitch-processor-aec.js
 
 **"Video playback stuttering"**

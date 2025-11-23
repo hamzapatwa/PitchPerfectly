@@ -182,22 +182,37 @@ export default function ResultsScreen({ sessionId, results: propResults, apiBase
               <div className="chart-container">
                 <h3>Pitch Timeline</h3>
                 <div className="chart">
-                  <svg width="100%" height="200" className="pitch-chart">
-                    {results.graphs.pitchTimeline.map((point, index) => {
-                      const maxTime = Math.max(...results.graphs.pitchTimeline.map(p => p.time || 0)) || 1;
-                      const x = ((point.time || 0) / maxTime) * 100;
-                      const y = 100 - ((point.score || 0) / 100) * 80;
-                      return (
-                        <circle
-                          key={index}
-                          cx={`${x}%`}
-                          cy={`${y}%`}
-                          r="2"
-                          fill="#39ff14"
-                          opacity="0.7"
-                        />
-                      );
-                    })}
+                  <svg width="100%" height="200" viewBox="0 0 1000 100" preserveAspectRatio="none" className="pitch-chart">
+                    {(() => {
+                      const pitchData = results.graphs.pitchTimeline || [];
+                      if (pitchData.length === 0) return null;
+
+                      const maxTime = Math.max(...pitchData.map(p => p.time || 0)) || 1;
+                      const minTime = Math.min(...pitchData.map(p => p.time || 0)) || 0;
+                      const timeRange = maxTime - minTime;
+
+                      console.log('Pitch data points:', pitchData.length, 'maxTime:', maxTime, 'minTime:', minTime, 'range:', timeRange);
+
+                      // If time range is too small (< 2 seconds), use index-based positioning
+                      const useIndex = timeRange < 2;
+
+                      return pitchData.map((point, index) => {
+                        const x = useIndex
+                          ? (index / (pitchData.length - 1 || 1)) * 1000
+                          : ((point.time - minTime) / timeRange) * 1000;
+                        const y = 90 - ((point.score || 0) / 100) * 80; // Map score 0-100 to y 90-10
+                        return (
+                          <circle
+                            key={index}
+                            cx={x}
+                            cy={y}
+                            r="3"
+                            fill="#39ff14"
+                            opacity="0.7"
+                          />
+                        );
+                      });
+                    })()}
                   </svg>
                 </div>
               </div>
@@ -205,18 +220,39 @@ export default function ResultsScreen({ sessionId, results: propResults, apiBase
               <div className="chart-container">
                 <h3>Energy Graph</h3>
                 <div className="chart">
-                  <svg width="100%" height="200" className="energy-chart">
-                    <polyline
-                      points={(() => {
-                        const maxTime = Math.max(...results.graphs.energyGraph.map(p => p.time || 0)) || 1;
-                        return results.graphs.energyGraph.map((point) =>
-                          `${((point.time || 0) / maxTime) * 100}%,${100 - (point.energy || 0) * 100}%`
-                        ).join(' ');
-                      })()}
-                      fill="none"
-                      stroke="#ff00e6"
-                      strokeWidth="2"
-                    />
+                  <svg width="100%" height="200" viewBox="0 0 1000 100" preserveAspectRatio="none" className="energy-chart">
+                    {(() => {
+                      const energyData = results.graphs.energyGraph || [];
+                      if (energyData.length === 0) return null;
+
+                      const maxTime = Math.max(...energyData.map(p => p.time || 0)) || 1;
+                      const minTime = Math.min(...energyData.map(p => p.time || 0)) || 0;
+                      const timeRange = maxTime - minTime;
+                      const maxEnergy = Math.max(...energyData.map(p => p.energy || 0)) || 1;
+
+                      console.log('Energy data points:', energyData.length, 'maxTime:', maxTime, 'minTime:', minTime, 'range:', timeRange, 'maxEnergy:', maxEnergy);
+
+                      // If time range is too small (< 2 seconds), use index-based positioning
+                      const useIndex = timeRange < 2;
+
+                      const points = energyData.map((point, index) => {
+                        const x = useIndex
+                          ? (index / (energyData.length - 1 || 1)) * 1000
+                          : ((point.time - minTime) / timeRange) * 1000;
+                        const normalizedEnergy = (point.energy || 0) / maxEnergy;
+                        const y = 90 - (normalizedEnergy * 80); // Map normalized energy to y 90-10
+                        return `${x},${y}`;
+                      }).join(' ');
+
+                      return (
+                        <polyline
+                          points={points}
+                          fill="none"
+                          stroke="#ff00e6"
+                          strokeWidth="2"
+                        />
+                      );
+                    })()}
                   </svg>
                 </div>
               </div>

@@ -11,6 +11,29 @@ import { v4 as uuidv4 } from 'uuid';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Find the Python executable to use for preprocessing
+ * Tries venv first, then falls back to system python3
+ */
+async function findPythonExecutable() {
+  const venvPython = path.join(__dirname, '../python/.venv/bin/python');
+  const venvPython3 = path.join(__dirname, '../python/.venv/bin/python3');
+
+  // Check if venv Python exists
+  try {
+    await fs.access(venvPython);
+    return venvPython;
+  } catch {
+    try {
+      await fs.access(venvPython3);
+      return venvPython3;
+    } catch {
+      // Fallback to system python3
+      return 'python3';
+    }
+  }
+}
+
 const app = express();
 
 // Enable CORS for all routes
@@ -262,9 +285,10 @@ async function startPreprocessing(songId, songDir) {
       '--device', 'auto'
     ];
 
-    // Use the virtual environment's Python
-    const venvPython = path.join(__dirname, '../python/.venv/bin/python');
-    const process = spawn(venvPython, args);
+    // Find the Python executable (venv or system fallback)
+    const pythonExecutable = await findPythonExecutable();
+    console.log(`Using Python: ${pythonExecutable}`);
+    const process = spawn(pythonExecutable, args);
 
     let stdout = '';
     let stderr = '';
@@ -806,9 +830,10 @@ app.post('/sessions/:id/refine', async (req, res) => {
 
     // Run refinement script
     const pythonScript = path.join(__dirname, '../python/refine_results.py');
-    // Use the virtual environment's Python
-    const venvPython = path.join(__dirname, '../python/.venv/bin/python');
-    const process = spawn(venvPython, [
+    // Find the Python executable (venv or system fallback)
+    const pythonExecutable = await findPythonExecutable();
+    console.log(`Using Python for refinement: ${pythonExecutable}`);
+    const process = spawn(pythonExecutable, [
       pythonScript,
       '--reference', referencePath,
       '--performance', performancePath,

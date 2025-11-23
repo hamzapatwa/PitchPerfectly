@@ -81,7 +81,7 @@ const LiveHUD = ({
     PITCH_WEIGHT: 0.70,
     ENERGY_WEIGHT: 0.30,
 
-    // Pitch scoring - forgiving and musical
+    // Pitch scoring - MORE FORGIVING
     // ±50-100 cents = good neighborhood (80-95% score)
     // Only large errors (>150-200 cents) drop below 40%
     PITCH_PERFECT_CENTS: 50,       // ±50 cents = perfect (95-100%)
@@ -94,16 +94,24 @@ const LiveHUD = ({
     KEY_SHIFT_MAX_OFFSET: 200,    // Max ±200 cents allowed
 
     // Energy scoring - user-relative
-    ENERGY_MIN_THRESHOLD: 0.01,   // Minimum energy to score (below = silence = 0%)
+    ENERGY_MIN_THRESHOLD: 0.005,  // Lower threshold (was 0.01) - more forgiving for quiet singing
     ENERGY_SMOOTHING_WINDOW: 5,   // Samples for rolling max calculation
 
     // Combo
-    COMBO_THRESHOLD: 0.7,         // 70% accuracy to maintain combo
-    COMBO_BREAK_THRESHOLD: 0.3,   // Below 30% breaks combo
+    COMBO_THRESHOLD: 0.6,         // 60% accuracy to maintain combo (was 70%)
+    COMBO_BREAK_THRESHOLD: 0.2,   // Below 20% breaks combo (was 30%)
 
-    // Smoothing
-    EMA_ALPHA: 0.3,               // Exponential moving average
-    BACKBUFFER_MS: 250            // 250ms backbuffer for stability
+    // Smoothing - MORE SMOOTHING
+    EMA_ALPHA: 0.2,               // Lower alpha = more smoothing (was 0.3)
+    BACKBUFFER_MS: 350,           // Longer backbuffer for stability (was 250ms)
+
+    // Continuous scoring - never drop to 0
+    PITCH_FLOOR: 0.15,            // Minimum pitch score (15% even if silent/off-pitch)
+    ENERGY_FLOOR: 0.10,           // Minimum energy score (10% even if silent)
+
+    // Confidence thresholds
+    MIN_CONFIDENCE: 0.2,          // Lower confidence threshold (was 0.3)
+    LOW_CONFIDENCE_FLOOR: 0.3     // Minimum score for low confidence (instead of 0)
   };
 
   /**
@@ -314,17 +322,41 @@ const LiveHUD = ({
   }, [referenceData]);
 
   /**
-   * Calculate pitch score with key-shift forgiveness and temporal smoothing.
-   * More forgiving scoring: ±50-100 cents = high score (80-95%), only large errors (>150-200 cents) tank the score.
-   * Smoothed over ~100-200ms to reduce frame-to-frame jitter.
+   * Smooth sigmoid function for continuous transitions
+   * Maps input smoothly from 0 to 1 with no discontinuities
+   */
+  const smoothSigmoid = (x, center, width) => {
+    return 1 / (1 + Math.exp(-(x - center) / width));
+  };
+
+  /**
+   * Smooth confidence multiplier (continuous, not step function)
+   * Uses sigmoid to smoothly scale from floor to full score based on confidence
+   */
+  const confidenceMultiplier = (confidence) => {
+    // Sigmoid centered at 0.3, smooth transition from floor to 1.0
+    const smoothFactor = smoothSigmoid(confidence, 0.3, 0.1);
+    return SCORING_CONFIG.PITCH_FLOOR + smoothFactor * (1 - SCORING_CONFIG.PITCH_FLOOR);
+  };
+
+  /**
+   * Calculate pitch score with TRUE mathematical continuity.
+   * No jumps, no thresholds - smooth transitions everywhere.
+   * Uses exponential decay for pitch error and sigmoid for confidence.
    */
   const calculatePitchScore = useCallback((frequency, confidence, refData, currentTime) => {
-    if (frequency === 0 || refData.f0 === 0 || confidence < 0.3) {
-      return 0;
-    }
-
-    // Calculate raw cents error
-    let centsError = calculateCentsError(frequency, refData.f0);
+    // Smooth handling of zero frequency using sigmoid
+    // Instead of if(frequency === 0) return floor, smoothly transition near 0
+    const freqFactor = smoothSigmoid(frequency, 20, 10); // Smooth transition around 20 Hz
+    const refFactor = smoothSigmoid(refData.f0, 20, 10);
+    
+    // If either frequency is very low, smoothly approach floor
+    const detectionFactor = freqFactor * refFactor;
+    
+    // Calculate raw cents error (protected against zero)
+    const safeFreq = Math.max(frequency, 0.1);
+    const safeRef = Math.max(refData.f0, 0.1);
+    let centsError = calculateCentsError(safeFreq, safeRef);
 
     // Detect and apply key shift forgiveness
     keyShiftState.current.samples.push(centsError);
@@ -338,15 +370,11 @@ const LiveHUD = ({
       // Calculate median offset
       const medianOffset = median(keyShiftState.current.samples);
 
-      // If sustained offset detected, apply shift
-      if (Math.abs(medianOffset) > SCORING_CONFIG.KEY_SHIFT_TOLERANCE &&
-          Math.abs(medianOffset) < SCORING_CONFIG.KEY_SHIFT_MAX_OFFSET) {
-
-        keyShiftState.current.detectedOffset = medianOffset;
-        keyShiftState.current.confidence = 0.8;
-
-        // Apply shift
-        centsError -= medianOffset;
+      // Smooth key shift application using tanh instead of threshold
+      const shiftStrength = Math.tanh((Math.abs(medianOffset) - SCORING_CONFIG.KEY_SHIFT_TOLERANCE) / 50);
+      if (shiftStrength > 0) {
+        // Apply shift proportionally to strength
+        centsError -= medianOffset * Math.max(0, shiftStrength);
       }
     }
 
@@ -360,89 +388,80 @@ const LiveHUD = ({
     const smoothedCentsError = median(pitchSmoothingState.current.centsErrorBuffer);
     const absCentsError = Math.abs(smoothedCentsError);
 
-    // More forgiving piecewise scoring:
-    // ±50 cents = perfect (95-100%)
-    // ±100 cents = good (80-95%)
-    // ±200 cents = acceptable (40-80%)
-    // >200 cents = poor (<40%)
-    if (absCentsError <= SCORING_CONFIG.PITCH_PERFECT_CENTS) {
-      // Perfect: 95-100% (linear interpolation)
-      return 0.95 + (0.05 * (1 - absCentsError / SCORING_CONFIG.PITCH_PERFECT_CENTS));
-    } else if (absCentsError <= SCORING_CONFIG.PITCH_GOOD_CENTS) {
-      // Good: 80-95% (linear interpolation)
-      const t = (absCentsError - SCORING_CONFIG.PITCH_PERFECT_CENTS) /
-                (SCORING_CONFIG.PITCH_GOOD_CENTS - SCORING_CONFIG.PITCH_PERFECT_CENTS);
-      return 0.95 - (0.15 * t);
-    } else if (absCentsError <= SCORING_CONFIG.PITCH_ACCEPTABLE_CENTS) {
-      // Acceptable: 40-80% (linear interpolation)
-      const t = (absCentsError - SCORING_CONFIG.PITCH_GOOD_CENTS) /
-                (SCORING_CONFIG.PITCH_ACCEPTABLE_CENTS - SCORING_CONFIG.PITCH_GOOD_CENTS);
-      return 0.80 - (0.40 * t);
-    } else {
-      // Poor: 0-40% (linear falloff)
-      const excess = absCentsError - SCORING_CONFIG.PITCH_ACCEPTABLE_CENTS;
-      return Math.max(0, 0.40 - (excess * 0.002)); // ~0.2% per cent beyond acceptable
-    }
+    // CONTINUOUS scoring using exponential decay (no piecewise jumps)
+    // Perfect at 0 cents, smooth exponential decay as error increases
+    // Formula: score = floor + (1 - floor) * exp(-error / decay_rate)
+    const decayRate = 120; // Controls how fast score drops (larger = more forgiving)
+    const errorDecay = Math.exp(-absCentsError / decayRate);
+    
+    // Base score from pitch accuracy (exponential decay from 1.0 to floor)
+    const pitchAccuracyScore = SCORING_CONFIG.PITCH_FLOOR + 
+                              (1 - SCORING_CONFIG.PITCH_FLOOR) * errorDecay;
+    
+    // Apply smooth confidence multiplier (continuous, not step function)
+    const confMultiplier = confidenceMultiplier(confidence);
+    
+    // Apply smooth detection factor (continuous transition for freq near 0)
+    const finalScore = pitchAccuracyScore * confMultiplier * detectionFactor + 
+                       SCORING_CONFIG.PITCH_FLOOR * (1 - detectionFactor);
+    
+    return finalScore;
   }, []);
 
 
   /**
-   * Calculate energy score normalized to user's session loudness range.
-   * Silence/near-silence (< threshold) → 0%.
-   * As user sings louder, score increases smoothly toward 100%.
-   * Score is relative to user's own min/max energy this session, not the reference track.
+   * Calculate energy score with TRUE mathematical continuity.
+   * Uses logarithmic scaling and smooth transitions throughout.
+   * No thresholds, no jumps - fully continuous function.
    */
   const calculateEnergyScore = useCallback((energy, refData) => {
-    // If energy is below threshold, treat as silence → 0%
-    if (energy < SCORING_CONFIG.ENERGY_MIN_THRESHOLD) {
-      return 0;
-    }
-
     const tracking = energyTracking.current;
 
-    // Initialize tracking on first valid energy sample
+    // Initialize tracking smoothly on first sample
     if (!tracking.initialized) {
-      tracking.minEnergySeen = energy;
-      tracking.maxEnergySeen = energy;
+      tracking.minEnergySeen = Math.max(energy, 1e-6);
+      tracking.maxEnergySeen = Math.max(energy, 1e-6);
       tracking.initialized = true;
-      // Return a small initial score to start building range
-      return 0.1;
     }
 
-    // Update min/max (only update max upward, min downward to avoid noise)
+    // Smoothly update min/max using exponential moving average
+    const updateRate = 0.05;
     if (energy > tracking.maxEnergySeen) {
       tracking.maxEnergySeen = energy;
     }
-    if (energy < tracking.minEnergySeen && energy >= SCORING_CONFIG.ENERGY_MIN_THRESHOLD) {
-      tracking.minEnergySeen = energy;
+    if (energy > 1e-6 && energy < tracking.minEnergySeen) {
+      tracking.minEnergySeen = tracking.minEnergySeen * (1 - updateRate) + energy * updateRate;
     }
 
-    // Calculate normalized score [0, 1] based on session range
-    const range = tracking.maxEnergySeen - tracking.minEnergySeen;
+    // Use logarithmic scale for energy (more perceptually accurate)
+    // Add small epsilon to prevent log(0)
+    const epsilon = 1e-10;
+    const logEnergy = Math.log10(energy + epsilon);
+    const logMin = Math.log10(tracking.minEnergySeen + epsilon);
+    const logMax = Math.log10(tracking.maxEnergySeen + epsilon);
+    const logRange = Math.max(logMax - logMin, 0.01); // Prevent division by zero
 
-    // Safety: if range is too small, use a default mapping
-    if (range < 0.001) {
-      // Very small range - use logarithmic mapping from threshold to current max
-      const logEnergy = Math.log10(energy + 1e-10);
-      const logMin = Math.log10(SCORING_CONFIG.ENERGY_MIN_THRESHOLD + 1e-10);
-      const logMax = Math.log10(tracking.maxEnergySeen + 1e-10);
-      const logRange = logMax - logMin;
-
-      if (logRange < 0.1) {
-        // Still too small, use simple linear from threshold
-        return Math.min(1, (energy - SCORING_CONFIG.ENERGY_MIN_THRESHOLD) /
-                           (tracking.maxEnergySeen - SCORING_CONFIG.ENERGY_MIN_THRESHOLD + 0.001));
-      }
-
-      const normalized = (logEnergy - logMin) / logRange;
-      return Math.max(0, Math.min(1, normalized));
-    }
-
-    // Normal linear normalization
-    const normalized = (energy - tracking.minEnergySeen) / range;
-
-    // Clamp and return
-    return Math.max(0, Math.min(1, normalized));
+    // Continuous normalization on log scale
+    let normalized = (logEnergy - logMin) / logRange;
+    
+    // Smooth clamp using tanh (continuous, not hard clamp)
+    // tanh smoothly maps (-inf, inf) -> (-1, 1)
+    // We scale and shift to map smoothly to [floor, 1]
+    normalized = Math.tanh(normalized * 2); // Smooth saturation
+    
+    // Map from [-1, 1] to [floor, 1] smoothly
+    const score = SCORING_CONFIG.ENERGY_FLOOR + 
+                  (1 - SCORING_CONFIG.ENERGY_FLOOR) * (normalized + 1) / 2;
+    
+    // Additional smooth boost for very quiet singing using sigmoid
+    // This ensures floor is reached smoothly, not abruptly
+    const quietBoost = smoothSigmoid(energy, SCORING_CONFIG.ENERGY_MIN_THRESHOLD, 0.002);
+    
+    // Blend between floor and calculated score based on energy level
+    const finalScore = SCORING_CONFIG.ENERGY_FLOOR * (1 - quietBoost) + 
+                       score * quietBoost;
+    
+    return finalScore;
   }, []);
 
   /**

@@ -89,9 +89,14 @@ def separate_with_demucs(input_path, output_dir, device='mps', model_name='htdem
         model.to(torch_device)
         model.eval()
 
-    # Load audio
+    # Load audio using soundfile directly to avoid torchcodec dependency
     print(f"📂 Loading audio: {input_path}")
-    wav, sr = torchaudio.load(input_path)
+    wav_np, sr = sf.read(input_path, dtype='float32')
+    # Convert to torch tensor and ensure correct shape [channels, samples]
+    if wav_np.ndim == 1:
+        wav = torch.from_numpy(wav_np).unsqueeze(0)  # Mono: [1, samples]
+    else:
+        wav = torch.from_numpy(wav_np.T)  # Stereo: [2, samples]
 
     # Demucs expects 44.1kHz or 48kHz
     target_sr = 44100
