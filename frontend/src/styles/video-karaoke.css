@@ -17,13 +17,13 @@
 /* Video Container */
 .video-container {
   position: relative;
-  width: 100%;
-  aspect-ratio: 16 / 9;
+  width: 768px;
+  height: 432px;
   background: #000;
   border: 2px solid #f0f;
   border-radius: 8px;
   overflow: hidden;
-  margin-bottom: 20px;
+  margin: 0 auto 20px auto;
 }
 
 .karaoke-video {
@@ -359,9 +359,17 @@
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
+@media (max-width: 850px) {
   .video-karaoke-player {
     padding: 10px;
+    max-width: 100%;
+  }
+
+  .video-container {
+    width: 100%;
+    max-width: 768px;
+    height: auto;
+    aspect-ratio: 16 / 9;
   }
 
   .control-buttons {

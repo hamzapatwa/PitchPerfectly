@@ -13,8 +13,8 @@ services:
       - ./sessions:/app/sessions
       # Persist uploads
       - ./backend/uploads:/app/backend/uploads
-      # Database storage (named volume to avoid node_modules conflicts)
-      - db-storage:/app/backend
+      # Share the database file with the host so song names sync
+      - ./backend/karaoke.db:/app/backend/karaoke.db
     environment:
       - DEVICE=cpu
       - PORT=8080
@@ -28,6 +28,3 @@ services:
       retries: 3
       start_period: 40s
 
-volumes:
-  db-storage:
-    driver: local

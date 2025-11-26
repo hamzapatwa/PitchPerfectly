@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './styles/retro.css';
+import './styles/video-karaoke.css';
 import SongLibrary from './components/SongLibrary';
 import VideoKaraokePlayer from './components/VideoKaraokePlayer';
 import LiveHUD from './components/LiveHUD';
