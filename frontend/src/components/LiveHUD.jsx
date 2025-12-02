@@ -246,17 +246,26 @@ const LiveHUD = ({
 
     if (!refData) return;
 
-    // Calculate pitch score with key-shift forgiveness
-    const pitchScore = calculatePitchScore(frequency, confidence, refData, currentTime);
+    const hasReliablePitch =
+      frequency > 0 &&
+      confidence >= SCORING_CONFIG.MIN_CONFIDENCE &&
+      refData.f0 > 0;
+
+    // Calculate pitch score with key-shift forgiveness (only when reliable)
+    const pitchScore = hasReliablePitch
+      ? calculatePitchScore(frequency, confidence, refData, currentTime)
+      : null;
 
     // Calculate energy score
     const energyScore = calculateEnergyScore(energy, refData);
 
-    // Update combo
+    // Update combo (normalize weights if pitch not available)
+    const pitchWeight = pitchScore === null ? 0 : SCORING_CONFIG.PITCH_WEIGHT;
+    const totalWeight = pitchWeight + SCORING_CONFIG.ENERGY_WEIGHT;
     const totalFrameScore = (
-      pitchScore * SCORING_CONFIG.PITCH_WEIGHT +
+      (pitchScore ?? 0) * pitchWeight +
       energyScore * SCORING_CONFIG.ENERGY_WEIGHT
-    );
+    ) / totalWeight;
 
     updateCombo(totalFrameScore);
 
@@ -292,7 +301,9 @@ const LiveHUD = ({
     // Update scores (with EMA smoothing)
     setCurrentScore(prev => ({
       total: smoothValue(prev.total, totalFrameScore * 100, SCORING_CONFIG.EMA_ALPHA),
-      pitch: smoothValue(prev.pitch, pitchScore * 100, SCORING_CONFIG.EMA_ALPHA),
+      pitch: pitchScore !== null
+        ? smoothValue(prev.pitch, pitchScore * 100, SCORING_CONFIG.EMA_ALPHA)
+        : prev.pitch,
       energy: smoothValue(prev.energy, energyScore * 100, SCORING_CONFIG.EMA_ALPHA)
     }));
 
@@ -920,15 +931,19 @@ const LiveHUD = ({
   /**
    * Helper functions for calculations
    */
+  const filterValid = (arr) => arr.filter((val) => typeof val === 'number' && Number.isFinite(val));
+
   const average = (arr) => {
-    if (arr.length === 0) return 0;
-    return arr.reduce((sum, val) => sum + val, 0) / arr.length;
+    const valid = filterValid(arr);
+    if (valid.length === 0) return 0;
+    return valid.reduce((sum, val) => sum + val, 0) / valid.length;
   };
 
   const stdDev = (arr) => {
-    if (arr.length === 0) return 0;
-    const avg = average(arr);
-    const variance = arr.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / arr.length;
+    const valid = filterValid(arr);
+    if (valid.length === 0) return 0;
+    const avg = average(valid);
+    const variance = valid.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / valid.length;
     return Math.sqrt(variance);
   };
 
@@ -953,10 +968,16 @@ const LiveHUD = ({
     );
 
     // Generate graphs
-    const pitchTimeline = data.timestamps.map((time, idx) => ({
-      time,
-      score: data.pitchSamples[idx] * 100
-    }));
+    const pitchTimeline = data.timestamps
+      .map((time, idx) => {
+        const sample = data.pitchSamples[idx];
+        if (typeof sample !== 'number') return null;
+        return {
+          time,
+          score: sample * 100
+        };
+      })
+      .filter(Boolean);
 
     const energyGraph = data.timestamps.map((time, idx) => ({
       time,
