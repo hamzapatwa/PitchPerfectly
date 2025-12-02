@@ -88,8 +88,8 @@ const LiveHUD = ({
     ENERGY_SMOOTHING_WINDOW: 5,   // Samples for rolling max calculation
 
     // Combo
-    COMBO_THRESHOLD: 0.7,         // 60% accuracy to maintain combo (was 70%)
-    COMBO_BREAK_THRESHOLD: 0.3,   // Below 20% breaks combo (was 30%)
+    COMBO_THRESHOLD: 0.8,         // 60% accuracy to maintain combo (was 70%)
+    COMBO_BREAK_THRESHOLD: 0.4,   // Below 20% breaks combo (was 30%)
 
     // Smoothing - MORE SMOOTHING
     EMA_ALPHA: 0.2,               // Lower alpha = more smoothing (was 0.3)

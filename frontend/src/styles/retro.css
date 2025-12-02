@@ -1538,3 +1538,11 @@ canvas.crt {
   pointer-events: none;
   border-radius: 10px;
 }
+
+/* Global text glow clamp */
+.neon-title,
+.score-value,
+.current-lyric,
+.song-info h3 {
+  text-shadow: 0 0 2px currentColor !important;
+}
