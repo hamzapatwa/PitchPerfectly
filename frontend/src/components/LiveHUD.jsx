@@ -39,9 +39,13 @@ const LiveHUD = ({
     timestamps: [],
     combos: [],
     maxCombo: 0,
+    currentCombo: 0,
     frequencies: [],
     energies: []
   });
+
+  // Timeout to hide combo after it breaks
+  const comboHideTimeoutRef = useRef(null);
 
   // Key shift detection
   const keyShiftState = useRef({
@@ -88,8 +92,8 @@ const LiveHUD = ({
     ENERGY_SMOOTHING_WINDOW: 5,   // Samples for rolling max calculation
 
     // Combo
-    COMBO_THRESHOLD: 0.8,         // 60% accuracy to maintain combo (was 70%)
-    COMBO_BREAK_THRESHOLD: 0.4,   // Below 20% breaks combo (was 30%)
+    COMBO_THRESHOLD: 0.95,         // 60% accuracy to maintain combo (was 70%)
+    COMBO_BREAK_THRESHOLD: 0.6,   // Below 20% breaks combo (was 30%)
 
     // Smoothing - MORE SMOOTHING
     EMA_ALPHA: 0.2,               // Lower alpha = more smoothing (was 0.3)
@@ -280,13 +284,14 @@ const LiveHUD = ({
     // Update live metrics for display
     const centsError = calculateCentsError(frequency, refData.f0);
 
-    setLiveMetrics({
+    // Only update combo if it's being actively incremented (updateCombo handles combo updates)
+    setLiveMetrics(prev => ({
       frequency,
       confidence,
       centsError,
-      combo: performanceData.current.maxCombo,
+      combo: prev.combo, // Keep existing combo value (updated by updateCombo)
       energyMatch: energyScore
-    });
+    }));
 
     // Update scores (with EMA smoothing)
     setCurrentScore(prev => ({
@@ -490,10 +495,48 @@ const LiveHUD = ({
    */
   const updateCombo = (score) => {
     if (score >= SCORING_CONFIG.COMBO_THRESHOLD) {
-      const currentCombo = (performanceData.current.combos[performanceData.current.combos.length - 1] || 0) + 1;
+      // Clear any pending hide timeout since we're continuing the combo
+      if (comboHideTimeoutRef.current) {
+        clearTimeout(comboHideTimeoutRef.current);
+        comboHideTimeoutRef.current = null;
+      }
+
+      // Increment current combo
+      const currentCombo = performanceData.current.currentCombo + 1;
+      performanceData.current.currentCombo = currentCombo;
       performanceData.current.combos.push(currentCombo);
       performanceData.current.maxCombo = Math.max(performanceData.current.maxCombo, currentCombo);
-    } else if (score < SCORING_CONFIG.COMBO_BREAK_THRESHOLD) {
+
+      // Update live metrics immediately
+      setLiveMetrics(prev => ({
+        ...prev,
+        combo: currentCombo
+      }));
+    } else {
+      // Any score below threshold breaks the combo
+      if (performanceData.current.currentCombo > 0) {
+        // Store the current combo value for display during the timeout
+        const lastComboValue = performanceData.current.currentCombo;
+
+        // Reset current combo immediately so next good score starts from 0
+        performanceData.current.currentCombo = 0;
+
+        // Clear any existing timeout
+        if (comboHideTimeoutRef.current) {
+          clearTimeout(comboHideTimeoutRef.current);
+        }
+
+        // Set timeout to hide combo display after 1 second
+        comboHideTimeoutRef.current = setTimeout(() => {
+          setLiveMetrics(prev => ({
+            ...prev,
+            combo: 0
+          }));
+          comboHideTimeoutRef.current = null;
+        }, 1000);
+      }
+
+      // Add 0 to combos array
       performanceData.current.combos.push(0);
     }
   };
@@ -894,7 +937,7 @@ const LiveHUD = ({
    * Draw combo counter
    */
   const drawCombo = (ctx, width, height) => {
-    if (liveMetrics.combo > 5) {
+    if (liveMetrics.combo >= 2) {
       ctx.fillStyle = '#ff0';
       ctx.font = 'bold 48px monospace';
       ctx.textAlign = 'center';
@@ -977,16 +1020,18 @@ const LiveHUD = ({
     // Determine badges
     const badges = [];
 
-    if (data.maxCombo >= 50) {
+    if (data.maxCombo >= 5) {
       badges.push({
         name: 'Combo King',
         description: `${data.maxCombo}x combo streak!`
       });
     }
 
-    const energyConsistency = data.energies.length > 0 ?
-      1 - (stdDev(data.energies) / (average(data.energies) + 0.001)) : 0;
-    if (energyConsistency >= 0.9) {
+    // Use energy scores instead of raw energy values for more stable consistency check
+    const energyConsistency = data.energySamples.length > 0 ?
+      1 - (stdDev(data.energySamples) / (average(data.energySamples) + 0.001)) : 0;
+    const avgEnergyScore = average(data.energySamples);
+    if (energyConsistency >= 0.5 && avgEnergyScore >= 0.8) {
       badges.push({
         name: 'Mic Melter',
         description: 'Sustained energy!'
@@ -995,7 +1040,7 @@ const LiveHUD = ({
 
     const pitchConsistency = data.pitchSamples.length > 0 ?
       1 - (stdDev(data.pitchSamples) / (average(data.pitchSamples) + 0.001)) : 0;
-    if (pitchConsistency >= 0.9 && avgPitch >= 80) {
+    if (pitchConsistency >= 0.65 && avgPitch >= 60) {
       badges.push({
         name: 'Smooth Operator',
         description: 'Consistent pitch!'
@@ -1085,9 +1130,22 @@ const LiveHUD = ({
           timestamps: [],
           combos: [],
           maxCombo: 0,
+          currentCombo: 0,
           frequencies: [],
           energies: []
         };
+
+        // Clear combo hide timeout
+        if (comboHideTimeoutRef.current) {
+          clearTimeout(comboHideTimeoutRef.current);
+          comboHideTimeoutRef.current = null;
+        }
+
+        // Reset combo display
+        setLiveMetrics(prev => ({
+          ...prev,
+          combo: 0
+        }));
         keyShiftState.current = {
           detectedOffset: 0,
           confidence: 0,
@@ -1130,6 +1188,12 @@ const LiveHUD = ({
         audioContextRef.current = null;
       }
       audioWorkletRef.current = null;
+
+      // Clear combo hide timeout
+      if (comboHideTimeoutRef.current) {
+        clearTimeout(comboHideTimeoutRef.current);
+        comboHideTimeoutRef.current = null;
+      }
     }
 
     return () => {
@@ -1139,6 +1203,11 @@ const LiveHUD = ({
       }
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(() => {});
+      }
+      // Clear combo hide timeout
+      if (comboHideTimeoutRef.current) {
+        clearTimeout(comboHideTimeoutRef.current);
+        comboHideTimeoutRef.current = null;
       }
     };
   }, [isSessionActive, initAudioProcessing]);
