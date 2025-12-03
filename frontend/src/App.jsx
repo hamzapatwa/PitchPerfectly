@@ -157,7 +157,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1 className="neon-title">🎤 KARAOKE ARCADE 🎤</h1>
+        <h1 className="neon-title">🎤 PitchPerfectly 🎤</h1>
         <div className="status-indicators">
           {/* LIVE/OFFLINE indicator removed */}
         </div>
