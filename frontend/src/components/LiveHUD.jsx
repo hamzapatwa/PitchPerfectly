@@ -46,6 +46,8 @@ const LiveHUD = ({
 
   // Timeout to hide combo after it breaks
   const comboHideTimeoutRef = useRef(null);
+  // Cooldown flag to prevent combo from restarting too quickly
+  const comboCooldownRef = useRef(false);
 
   // Key shift detection
   const keyShiftState = useRef({
@@ -495,6 +497,11 @@ const LiveHUD = ({
    */
   const updateCombo = (score) => {
     if (score >= SCORING_CONFIG.COMBO_THRESHOLD) {
+      // Don't start a new combo if we're in cooldown period
+      if (comboCooldownRef.current) {
+        return;
+      }
+
       // Clear any pending hide timeout since we're continuing the combo
       if (comboHideTimeoutRef.current) {
         clearTimeout(comboHideTimeoutRef.current);
@@ -515,25 +522,26 @@ const LiveHUD = ({
     } else {
       // Any score below threshold breaks the combo
       if (performanceData.current.currentCombo > 0) {
-        // Store the current combo value for display during the timeout
-        const lastComboValue = performanceData.current.currentCombo;
-
         // Reset current combo immediately so next good score starts from 0
         performanceData.current.currentCombo = 0;
+
+        // Enable cooldown to prevent immediate restart
+        comboCooldownRef.current = true;
 
         // Clear any existing timeout
         if (comboHideTimeoutRef.current) {
           clearTimeout(comboHideTimeoutRef.current);
         }
 
-        // Set timeout to hide combo display after 1 second
+        // Set timeout to hide combo display and end cooldown after 1.5 seconds
         comboHideTimeoutRef.current = setTimeout(() => {
           setLiveMetrics(prev => ({
             ...prev,
             combo: 0
           }));
+          comboCooldownRef.current = false; // End cooldown
           comboHideTimeoutRef.current = null;
-        }, 1000);
+        }, 1500);
       }
 
       // Add 0 to combos array
@@ -1040,7 +1048,7 @@ const LiveHUD = ({
 
     const pitchConsistency = data.pitchSamples.length > 0 ?
       1 - (stdDev(data.pitchSamples) / (average(data.pitchSamples) + 0.001)) : 0;
-    if (pitchConsistency >= 0.65 && avgPitch >= 60) {
+    if (pitchConsistency >= 0.65 && avgPitch >= 65) {
       badges.push({
         name: 'Smooth Operator',
         description: 'Consistent pitch!'
@@ -1135,11 +1143,12 @@ const LiveHUD = ({
           energies: []
         };
 
-        // Clear combo hide timeout
+        // Clear combo hide timeout and cooldown
         if (comboHideTimeoutRef.current) {
           clearTimeout(comboHideTimeoutRef.current);
           comboHideTimeoutRef.current = null;
         }
+        comboCooldownRef.current = false;
 
         // Reset combo display
         setLiveMetrics(prev => ({
@@ -1189,11 +1198,12 @@ const LiveHUD = ({
       }
       audioWorkletRef.current = null;
 
-      // Clear combo hide timeout
+      // Clear combo hide timeout and cooldown
       if (comboHideTimeoutRef.current) {
         clearTimeout(comboHideTimeoutRef.current);
         comboHideTimeoutRef.current = null;
       }
+      comboCooldownRef.current = false;
     }
 
     return () => {
@@ -1204,11 +1214,12 @@ const LiveHUD = ({
       if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         audioContextRef.current.close().catch(() => {});
       }
-      // Clear combo hide timeout
+      // Clear combo hide timeout and cooldown
       if (comboHideTimeoutRef.current) {
         clearTimeout(comboHideTimeoutRef.current);
         comboHideTimeoutRef.current = null;
       }
+      comboCooldownRef.current = false;
     };
   }, [isSessionActive, initAudioProcessing]);
 
