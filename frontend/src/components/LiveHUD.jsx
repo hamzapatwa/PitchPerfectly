@@ -111,11 +111,11 @@ const LiveHUD = ({
   };
 
   /**
-   * Initialize audio processing with AEC
+   * Initialize audio processing
    */
   const initAudioProcessing = useCallback(async () => {
     try {
-      console.log('Initializing audio processing with AEC...');
+      console.log('Initializing audio processing...');
 
       // Create audio context with optimal settings
       audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({
@@ -133,9 +133,9 @@ const LiveHUD = ({
         console.log('Audio context resumed from suspended state');
       }
 
-      // Load AudioWorklet with AEC
+      // Load AudioWorklet
       try {
-        await audioContext.audioWorklet.addModule('/workers/pitch-processor-aec.js');
+        await audioContext.audioWorklet.addModule('/workers/pitch-processor.js');
         console.log('✅ AudioWorklet loaded successfully');
       } catch (error) {
         console.warn('Failed to load AudioWorklet, using fallback:', error);
@@ -143,10 +143,10 @@ const LiveHUD = ({
         console.log('Continuing without AudioWorklet - basic audio processing only');
       }
 
-      // Get microphone with AEC enabled
+      // Get microphone with browser echo cancellation
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,     // Browser-level AEC
+          echoCancellation: true,     // Browser-level echo cancellation
           noiseSuppression: true,     // Noise suppression
           autoGainControl: false,     // Keep natural dynamics
           sampleRate: 48000,
@@ -167,7 +167,7 @@ const LiveHUD = ({
 
       // Try to create AudioWorkletNode, fallback to basic processing
       try {
-        const workletNode = new AudioWorkletNode(audioContext, 'pitch-processor-aec');
+        const workletNode = new AudioWorkletNode(audioContext, 'pitch-processor');
         audioWorkletRef.current = workletNode;
 
         // Handle audio data from worklet

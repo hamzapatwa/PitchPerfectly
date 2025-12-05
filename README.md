@@ -18,7 +18,6 @@ A local, offline karaoke web application that combines YouTube-style karaoke vid
 | 🎬 **Video Karaoke** | MP4/WebM playback with frame-accurate timing (`requestVideoFrameCallback`) |
 | 🎵 **Advanced Audio** | Demucs v4 vocal separation + torch-crepe pitch tracking |
 | 🎯 **Real-time Scoring** | 30% pitch + 70% energy with live visual feedback |
-| 🔊 **Echo Cancellation** | NLMS adaptive filtering for speaker playback mode |
 | 📊 **Performance Analytics** | Phrase-level breakdown with post-run DTW refinement |
 | 🏆 **Local Leaderboard** | SQLite-based rankings with badge system |
 | 🎮 **Retro UI** | Neon grid aesthetics with CRT shader effects |
@@ -174,21 +173,19 @@ graph TB
 
     subgraph REALTIME["💫 REAL-TIME PERFORMANCE"]
         R1[Video Playback<br/>requestVideoFrameCallback<br/>HTTP Range Requests]:::realtime
-        R2[AudioWorklet<br/>pitch-processor-aec.js]:::realtime
+        R2[AudioWorklet<br/>pitch-processor.js]:::realtime
         R3[YIN Pitch Detection<br/>80-1000 Hz<br/>2048 samples]:::realtime
-        R4[NLMS Echo Cancel<br/>512-tap filter<br/>0.01 learning rate]:::realtime
-        R5[RMS Energy Calc<br/>User-Relative<br/>Log Normalization]:::realtime
-        R6[LiveHUD Scoring<br/>30% Pitch<br/>70% Energy]:::realtime
-        R7[Visual Feedback<br/>Note Lane<br/>Combo Counter<br/>Beat LEDs]:::realtime
+        R4[RMS Energy Calc<br/>User-Relative<br/>Log Normalization]:::realtime
+        R5[LiveHUD Scoring<br/>30% Pitch<br/>70% Energy]:::realtime
+        R6[Visual Feedback<br/>Note Lane<br/>Combo Counter<br/>Beat LEDs]:::realtime
 
         R1 --> R2
         R2 --> R3
         R2 --> R4
-        R2 --> R5
-        R3 --> R6
-        R4 --> R6
+        R3 --> R5
+        R4 --> R5
+        R4 --> R5
         R5 --> R6
-        R6 --> R7
     end
 
     S4 --> R1
@@ -358,7 +355,7 @@ Earn achievements based on your performance:
 #### Frontend (React 18.2 + Vite 4.4)
 - **VideoKaraokePlayer.jsx**: Frame-accurate playback with `requestVideoFrameCallback`
 - **LiveHUD.jsx**: Real-time scoring engine with Canvas rendering
-- **pitch-processor-aec.js**: AudioWorklet with YIN pitch detection + NLMS echo cancellation
+- **pitch-processor.js**: AudioWorklet with YIN pitch detection
 - **SongLibrary.jsx**: Song browser with metadata display
 - **ResultsScreen.jsx**: Performance analytics with SVG visualizations
 
@@ -403,7 +400,7 @@ karaoke-arcade-skeleton/
 │   │       └── video-karaoke.css       # HUD-specific styles
 │   ├── public/
 │   │   └── workers/
-│   │       └── pitch-processor-aec.js  # AudioWorklet (282 lines)
+│   │       └── pitch-processor.js      # AudioWorklet (190 lines)
 │   └── package.json           # React dependencies
 ├── python/
 │   ├── separate.py            # Demucs v4 separation (248 lines)
@@ -460,16 +457,6 @@ const SCORING_CONFIG = {
 };
 ```
 
-### Echo Cancellation (NLMS)
-
-Adjust in `frontend/public/workers/pitch-processor-aec.js`:
-
-```javascript
-this.aecFilterLength = 512;      // Filter taps (higher = better but slower)
-this.aecStepSize = 0.01;         // Learning rate (0.001-0.1)
-this.aecRegularization = 0.001;  // Prevents division by zero
-```
-
 ### Preprocessing Pipeline
 
 Configure in `python/preprocess_full.py`:
@@ -524,12 +511,10 @@ df -h .
 **Symptoms**: Karaoke playback bleeds into microphone input
 
 **Solutions**:
-- **Use headphones** (bypasses echo cancellation entirely)
+- **Use headphones** (recommended for best experience)
 - Reduce karaoke volume to 30-50%
 - Increase microphone distance from speakers
-- Adjust AEC learning rate (try 0.005 or 0.02)
-
-**Note**: Current implementation has AEC filter but reference signal not fully wired. Headphones recommended.
+- Enable browser echo cancellation (enabled by default in microphone constraints)
 
 #### ❌ "Video playback stuttering"
 
@@ -848,7 +833,7 @@ docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/karaoke-arcade:latest
 - [x] DTW alignment for sync handling
 - [x] torch-crepe pitch extraction
 - [x] Real-time scoring with AudioWorklet
-- [x] NLMS echo cancellation (filter implemented, wiring in progress)
+- [x] Browser-level echo cancellation (via getUserMedia)
 - [x] Live HUD with visual feedback
 - [x] Local leaderboard with badge system
 - [x] Retro arcade UI with neon aesthetics
@@ -856,7 +841,6 @@ docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/karaoke-arcade:latest
 - [x] Comprehensive documentation
 
 ### 🔄 In Progress
-- [ ] Complete AEC reference signal wiring
 - [ ] Mobile responsive design
 - [ ] Unit and integration tests
 - [ ] Error recovery and fallback mechanisms

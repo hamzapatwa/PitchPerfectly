@@ -1,31 +1,16 @@
 /**
- * AudioWorklet processor with pitch detection, energy analysis, and
- * NLMS (Normalized Least Mean Squares) adaptive echo cancellation.
+ * AudioWorklet processor with pitch detection and energy analysis.
  *
  * This processor handles:
  * 1. Microphone input capture
- * 2. Adaptive echo cancellation (removes karaoke playback bleed)
- * 3. Real-time pitch estimation (YIN/MPM algorithm)
- * 4. Energy/loudness calculation
- * 5. Spectral centroid (brightness)
- *
- * Optimized for speaker playback on MacBook Pro.
+ * 2. Real-time pitch estimation (YIN algorithm)
+ * 3. Energy/loudness calculation
+ * 4. Spectral centroid (brightness)
  */
 
-class PitchProcessorAEC extends AudioWorkletProcessor {
+class PitchProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
-
-    // NLMS Adaptive Filter Configuration
-    this.aecFilterLength = 512;  // Adaptive filter taps
-    this.aecWeights = new Float32Array(this.aecFilterLength).fill(0);
-    this.aecStepSize = 0.01;  // Learning rate (μ)
-    this.aecRegularization = 0.001;  // Prevents division by zero
-    this.aecEnabled = true;
-
-    // Reference signal buffer (karaoke playback)
-    this.referenceBuffer = new Float32Array(this.aecFilterLength);
-    this.referenceBufferIdx = 0;
 
     // Pitch detection settings
     this.bufferSize = 2048;
@@ -44,75 +29,6 @@ class PitchProcessorAEC extends AudioWorkletProcessor {
     // Frame counter for throttling messages
     this.frameCount = 0;
     this.sendInterval = 4;  // Send every 4 frames (~20ms at 48kHz)
-
-    // AEC debug stats
-    this.aecReduction = 0;
-
-    // Message handler
-    this.port.onmessage = (event) => {
-      if (event.data.type === 'setAECEnabled') {
-        this.aecEnabled = event.data.enabled;
-      } else if (event.data.type === 'setAECStepSize') {
-        this.aecStepSize = event.data.stepSize;
-      } else if (event.data.type === 'resetAEC') {
-        this.aecWeights.fill(0);
-        this.referenceBuffer.fill(0);
-      }
-    };
-  }
-
-  /**
-   * NLMS Adaptive Echo Cancellation
-   * Removes karaoke playback bleed from microphone signal.
-   *
-   * Algorithm:
-   * 1. Maintain reference buffer of karaoke playback
-   * 2. Compute adaptive filter output (echo estimate)
-   * 3. Subtract echo from mic signal
-   * 4. Update filter weights based on error
-   */
-  applyNLMS(micSample, referenceSample) {
-    if (!this.aecEnabled) {
-      return micSample;
-    }
-
-    // Add reference sample to buffer
-    this.referenceBuffer[this.referenceBufferIdx] = referenceSample;
-    this.referenceBufferIdx = (this.referenceBufferIdx + 1) % this.aecFilterLength;
-
-    // Compute filter output (echo estimate)
-    let echoEstimate = 0;
-    for (let i = 0; i < this.aecFilterLength; i++) {
-      const idx = (this.referenceBufferIdx - i - 1 + this.aecFilterLength) % this.aecFilterLength;
-      echoEstimate += this.aecWeights[i] * this.referenceBuffer[idx];
-    }
-
-    // Error signal (residual after echo removal)
-    const error = micSample - echoEstimate;
-
-    // Compute reference power (for normalization)
-    let refPower = this.aecRegularization;
-    for (let i = 0; i < this.aecFilterLength; i++) {
-      const idx = (this.referenceBufferIdx - i - 1 + this.aecFilterLength) % this.aecFilterLength;
-      const refSample = this.referenceBuffer[idx];
-      refPower += refSample * refSample;
-    }
-
-    // Update filter weights (NLMS)
-    const normalizedStepSize = this.aecStepSize / refPower;
-    for (let i = 0; i < this.aecFilterLength; i++) {
-      const idx = (this.referenceBufferIdx - i - 1 + this.aecFilterLength) % this.aecFilterLength;
-      const refSample = this.referenceBuffer[idx];
-      this.aecWeights[i] += normalizedStepSize * error * refSample;
-
-      // Clipping guard (prevent instability)
-      this.aecWeights[i] = Math.max(-1, Math.min(1, this.aecWeights[i]));
-    }
-
-    // Track echo reduction (for debugging)
-    this.aecReduction = 0.9 * this.aecReduction + 0.1 * Math.abs(echoEstimate);
-
-    return error;
   }
 
   /**
@@ -220,22 +136,16 @@ class PitchProcessorAEC extends AudioWorkletProcessor {
    */
   process(inputs, outputs, parameters) {
     const micInput = inputs[0];
-    const referenceInput = inputs[1]; // Karaoke playback reference (for AEC)
 
     if (!micInput || micInput.length === 0) {
       return true;
     }
 
     const micChannel = micInput[0];
-    const referenceChannel = referenceInput && referenceInput[0] ? referenceInput[0] : null;
 
     // Process each sample
     for (let i = 0; i < micChannel.length; i++) {
-      let micSample = micChannel[i];
-      const referenceSample = referenceChannel ? referenceChannel[i] : 0;
-
-      // Apply adaptive echo cancellation
-      micSample = this.applyNLMS(micSample, referenceSample);
+      const micSample = micChannel[i];
 
       // Add to pitch detection buffer
       this.buffer[this.bufferIndex] = micSample;
@@ -267,7 +177,6 @@ class PitchProcessorAEC extends AudioWorkletProcessor {
             energy: this.smoothedEnergy,
             rms: rms,
             centroid: centroid,
-            aecReduction: this.aecReduction,
             timestamp: currentTime
           });
         }
@@ -278,5 +187,4 @@ class PitchProcessorAEC extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('pitch-processor-aec', PitchProcessorAEC);
-
+registerProcessor('pitch-processor', PitchProcessor);
