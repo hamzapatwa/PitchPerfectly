@@ -1,0 +1,112 @@
+{
+  "family": "karaoke-arcade",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["EC2"],
+  "cpu": "2048",
+  "memory": "8192",
+  "containerDefinitions": [
+    {
+      "name": "karaoke-arcade",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/karaoke-arcade:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DEVICE",
+          "value": "auto"
+        },
+        {
+          "name": "PORT",
+          "value": "8080"
+        },
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        }
+      ],
+      "resourceRequirements": [
+        {
+          "type": "GPU",
+          "value": "1"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "songs",
+          "containerPath": "/app/songs"
+        },
+        {
+          "sourceVolume": "sessions",
+          "containerPath": "/app/sessions"
+        },
+        {
+          "sourceVolume": "database",
+          "containerPath": "/app/backend"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/karaoke-arcade",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget --spider -q http://localhost:8080 || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ],
+  "volumes": [
+    {
+      "name": "songs",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "<EFS_FILE_SYSTEM_ID>",
+        "rootDirectory": "/songs",
+        "transitEncryption": "ENABLED"
+      }
+    },
+    {
+      "name": "sessions",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "<EFS_FILE_SYSTEM_ID>",
+        "rootDirectory": "/sessions",
+        "transitEncryption": "ENABLED"
+      }
+    },
+    {
+      "name": "database",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "<EFS_FILE_SYSTEM_ID>",
+        "rootDirectory": "/database",
+        "transitEncryption": "ENABLED"
+      }
+    }
+  ],
+  "placementConstraints": [
+    {
+      "type": "memberOf",
+      "expression": "attribute:ecs.instance-type =~ g4dn.*"
+    }
+  ],
+  "tags": [
+    {
+      "key": "Application",
+      "value": "karaoke-arcade"
+    },
+    {
+      "key": "Environment",
+      "value": "production"
+    }
+  ]
+}

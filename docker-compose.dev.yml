@@ -19,7 +19,7 @@ services:
       # Use named volume for node_modules to avoid conflicts
       - backend-node-modules:/app/backend/node_modules
     environment:
-      - DEVICE=cpu
+      - DEVICE=cpu  # Force CPU in dev mode (Mac doesn't support GPU in Docker)
       - PORT=8080
       - NODE_ENV=development
     command: /bin/bash -c "echo '🔧 Installing backend dependencies...' && cd /app/backend && npm install && echo '🚀 Starting backend dev server on port 8080...' && npm run dev"

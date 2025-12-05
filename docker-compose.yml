@@ -16,7 +16,7 @@ services:
       # Share the database file with the host so song names sync
       - ./backend/karaoke.db:/app/backend/karaoke.db
     environment:
-      - DEVICE=cpu
+      - DEVICE=auto  # Auto-detect GPU, fallback to CPU
       - PORT=8080
       - NODE_ENV=production
     restart: unless-stopped

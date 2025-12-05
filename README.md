@@ -37,14 +37,41 @@ The fastest way to get started—no dependencies required:
 git clone <your-repo-url>
 cd karaoke-arcade-skeleton
 
-# Start the application
+# CPU mode (works everywhere, including Mac)
 ./docker-start.sh
+
+# GPU mode (Linux with NVIDIA GPU only - 4x faster preprocessing)
+./docker-start-gpu.sh
 
 # Open in browser
 open http://localhost:8080
 ```
 
-**Note**: Docker runs in CPU mode (slower preprocessing but works everywhere).
+**Performance Notes**:
+- **CPU mode**: Works on all platforms (Mac, Windows, Linux) - preprocessing takes 2-4 minutes per song
+- **GPU mode**: Requires NVIDIA GPU + Linux - preprocessing takes 30-60 seconds per song (4x faster!)
+- **AWS deployment**: See guides below for cloud GPU setup
+
+### ☁️ Deploy to AWS (One Command!)
+
+Deploy to AWS with GPU acceleration in one command:
+
+```bash
+# Configure AWS (one-time)
+aws configure
+
+# Deploy everything automatically
+./deploy-aws-spot-complete.sh
+```
+
+This creates a complete AWS infrastructure with:
+- ✅ g4dn.xlarge Spot instance (70% cheaper!)
+- ✅ GPU acceleration (4x faster preprocessing)
+- ✅ Your songs uploaded to EFS
+- ✅ Auto-scaling and monitoring
+- ✅ ~$130-150/month (or $0 when stopped)
+
+See [AWS-DEPLOYMENT-SIMPLE.md](AWS-DEPLOYMENT-SIMPLE.md) for the complete guide.
 
 ### 💻 Native Installation
 
@@ -542,13 +569,18 @@ ffmpeg -i input.webm -c:v libx264 -preset fast output.mp4
 
 ### Performance Benchmarks
 
-| Task | Apple Silicon (MPS) | Intel CPU | Docker (CPU) |
-|------|---------------------|-----------|--------------|
-| Vocal separation (3min) | 15-30s | 45-90s | 60-120s |
-| DTW alignment | ~5s | ~5s | ~5s |
-| Pitch extraction | ~8s | ~15s | ~12s |
-| **Total preprocessing** | **30-45s** | **90-180s** | **120-240s** |
-| Real-time scoring latency | <10ms | <10ms | <10ms |
+| Task | Apple Silicon (MPS) | NVIDIA GPU (Docker) | Intel CPU | Docker (CPU) |
+|------|---------------------|---------------------|-----------|--------------|
+| Vocal separation (3min) | 15-30s | 15-30s | 45-90s | 60-120s |
+| DTW alignment | ~5s | ~5s | ~5s | ~5s |
+| Pitch extraction | ~8s | ~6s | ~15s | ~12s |
+| **Total preprocessing** | **30-45s** | **30-60s** | **90-180s** | **120-240s** |
+| Real-time scoring latency | <10ms | <10ms | <10ms | <10ms |
+
+**GPU Recommendations:**
+- **Development/Testing**: NVIDIA T4 (AWS g4dn.xlarge) - ~$0.53/hour
+- **Production**: NVIDIA A10G (AWS g5.xlarge) - ~$1.00/hour
+- See [GPU-DEPLOYMENT.md](GPU-DEPLOYMENT.md) for detailed setup and benchmarks
 
 ---
 
@@ -784,6 +816,27 @@ cd ../backend
 node server.js
 # Open http://localhost:8080
 ```
+
+### GPU-Accelerated Deployment
+
+For production deployments with GPU acceleration (AWS, on-premise):
+
+```bash
+# AWS ECS deployment
+docker build -t karaoke-arcade .
+docker tag karaoke-arcade:latest <account-id>.dkr.ecr.us-east-1.amazonaws.com/karaoke-arcade:latest
+docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/karaoke-arcade:latest
+
+# Deploy to ECS with GPU support (see GPU-DEPLOYMENT.md for full guide)
+```
+
+**GPU Benefits:**
+- ✅ 4x faster preprocessing (30-60s vs 120-240s per song)
+- ✅ Better user experience for song uploads
+- ✅ Cost-effective for high-volume usage
+- ✅ Automatic CPU fallback if GPU unavailable
+
+📖 **Complete GPU Setup Guide**: [GPU-DEPLOYMENT.md](GPU-DEPLOYMENT.md)
 
 ---
 

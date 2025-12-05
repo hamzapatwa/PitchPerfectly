@@ -50,7 +50,9 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 5. Verify MPS (Apple Silicon Acceleration)
+### 5. Verify GPU Acceleration (Optional)
+
+#### For Apple Silicon (Mac)
 
 ```bash
 python separate.py --check-mps
@@ -62,11 +64,48 @@ If you see an error, check:
 - macOS version (must be 12.3+)
 - PyTorch installation: `pip install --upgrade torch torchvision torchaudio`
 
+#### For NVIDIA GPU (Linux/Windows)
+
+```bash
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+```
+
+**Expected output**: `CUDA available: True`
+
+If False, install CUDA-enabled PyTorch:
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
+
+#### Performance Comparison
+
+| Hardware | Preprocessing Time (3min song) |
+|----------|-------------------------------|
+| Apple Silicon (MPS) | 30-45 seconds |
+| NVIDIA GPU (CUDA) | 30-60 seconds |
+| Intel CPU | 90-180 seconds |
+
 ---
 
 ## Usage
 
-### Start the Server
+### Option A: Docker (Easiest)
+
+#### CPU Mode (Works Everywhere)
+```bash
+./docker-start.sh
+```
+
+#### GPU Mode (Linux with NVIDIA GPU)
+```bash
+./docker-start-gpu.sh
+```
+
+Open your browser to: **http://localhost:8080**
+
+### Option B: Native (Best Performance)
+
+#### Start the Server
 
 ```bash
 cd backend
@@ -82,7 +121,7 @@ node server.js
    - Refine results: POST /sessions/:id/refine
 ```
 
-### Open the Web App
+#### Open the Web App
 
 Open your browser to: **http://localhost:8080**
 

@@ -1,4 +1,5 @@
-# Multi-stage Dockerfile for Karaoke Arcade
+# Multi-stage Dockerfile for Karaoke Arcade with GPU support
+# Supports NVIDIA CUDA GPUs with automatic CPU fallback
 FROM python:3.11-slim as base
 
 # Install system dependencies
@@ -21,6 +22,12 @@ WORKDIR /app
 
 # Copy Python dependencies first for better caching
 COPY python/requirements.txt /app/python/requirements.txt
+
+# Install PyTorch with CUDA support (includes CPU fallback)
+# This version works with both CUDA 11.8+ and CPU-only environments
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
+# Install remaining Python dependencies
 RUN pip install --no-cache-dir -r python/requirements.txt
 
 # Copy Python scripts
@@ -81,17 +88,35 @@ RUN mkdir -p /app/songs /app/sessions /app/backend/uploads /app/backend/referenc
 # Expose port
 EXPOSE 8080
 
-# Set environment variables for CPU fallback (no MPS in Docker)
-ENV DEVICE=cpu
+# Set environment variables with auto device detection
+ENV DEVICE=auto
 ENV PORT=8080
 
-# Create startup script
+# Create startup script with GPU detection
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
 echo "🎤 Starting Karaoke Arcade in Docker..."\n\
 echo "===================================="\n\
-echo "Device: $DEVICE"\n\
+echo ""\n\
+\n\
+# Detect GPU availability\n\
+if command -v nvidia-smi &> /dev/null; then\n\
+    echo "GPU Detection:"\n\
+    nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader || true\n\
+    echo ""\n\
+    if [ "$DEVICE" = "auto" ]; then\n\
+        echo "NVIDIA GPU detected - will use CUDA acceleration"\n\
+        export DEVICE=cuda\n\
+    fi\n\
+else\n\
+    if [ "$DEVICE" = "auto" ]; then\n\
+        echo "No GPU detected - using CPU mode"\n\
+        export DEVICE=cpu\n\
+    fi\n\
+fi\n\
+\n\
+echo "🔧 Device mode: $DEVICE"\n\
 echo ""\n\
 \n\
 # Create Python venv for compatibility (even though packages are global)\n\
@@ -99,7 +124,7 @@ if [ ! -d "/app/python/.venv" ]; then\n\
     echo "📦 Creating Python virtual environment..."\n\
     python3 -m venv /app/python/.venv\n\
     # Link the global packages to the venv\n\
-    ln -s /usr/local/lib/python3.11/site-packages/* /app/python/.venv/lib/python3.11/site-packages/\n\
+    ln -s /usr/local/lib/python3.11/site-packages/* /app/python/.venv/lib/python3.11/site-packages/ 2>/dev/null || true\n\
 fi\n\
 \n\
 # Start the server\n\
