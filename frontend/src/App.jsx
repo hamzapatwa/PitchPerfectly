@@ -8,7 +8,10 @@ import MicCheck from './components/MicCheck';
 import ResultsScreen from './components/ResultsScreen';
 
 // Use current host for API calls (works both locally and on deployed server)
-const API_BASE = window.location.origin;
+// In dev mode (port 3000), point to backend on port 8080
+const API_BASE = window.location.port === '3000'
+  ? 'http://localhost:8080'
+  : window.location.origin;
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('library'); // library, mic-check, karaoke, results

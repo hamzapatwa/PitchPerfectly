@@ -7,15 +7,6 @@ export default function ResultsScreen({ sessionId, results: propResults, apiBase
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  useEffect(() => {
-    if (propResults) {
-      setResults(propResults);
-      setLoading(false);
-    } else if (sessionId) {
-      loadResults();
-    }
-  }, [sessionId, propResults]);
-
   const loadResults = useCallback(async () => {
     try {
       const response = await fetch(`${apiBase}/sessions/${sessionId}/results`);
@@ -27,6 +18,15 @@ export default function ResultsScreen({ sessionId, results: propResults, apiBase
       setLoading(false);
     }
   }, [apiBase, sessionId]);
+
+  useEffect(() => {
+    if (propResults) {
+      setResults(propResults);
+      setLoading(false);
+    } else if (sessionId) {
+      loadResults();
+    }
+  }, [sessionId, propResults, loadResults]);
 
   const submitToLeaderboard = useCallback(async () => {
     if (!playerName.trim()) {
@@ -76,6 +76,50 @@ export default function ResultsScreen({ sessionId, results: propResults, apiBase
     if (score >= 50) return 'D';
     return 'F';
   }, []);
+
+  // Memoize chart data at the top level
+  const pitchChartPoints = useMemo(() => {
+    if (!results?.graphs?.pitchTimeline) return null;
+    const pitchData = results.graphs.pitchTimeline;
+    if (pitchData.length === 0) return null;
+
+    const times = pitchData.map(p => p.time || 0);
+    const maxTime = Math.max(...times) || 1;
+    const minTime = Math.min(...times) || 0;
+    const timeRange = maxTime - minTime;
+    const useIndex = timeRange < 2;
+
+    return pitchData.map((point, index) => {
+      const x = useIndex
+        ? (index / (pitchData.length - 1 || 1)) * 1000
+        : ((point.time - minTime) / timeRange) * 1000;
+      const y = 90 - ((point.score || 0) / 100) * 80;
+      return { x, y, index };
+    });
+  }, [results]);
+
+  const energyChartPath = useMemo(() => {
+    if (!results?.graphs?.energyGraph) return null;
+    const energyData = results.graphs.energyGraph;
+    if (energyData.length === 0) return null;
+
+    const times = energyData.map(p => p.time || 0);
+    const energies = energyData.map(p => p.energy || 0);
+    const maxTime = Math.max(...times) || 1;
+    const minTime = Math.min(...times) || 0;
+    const timeRange = maxTime - minTime;
+    const maxEnergy = Math.max(...energies) || 1;
+    const useIndex = timeRange < 2;
+
+    return energyData.map((point, index) => {
+      const x = useIndex
+        ? (index / (energyData.length - 1 || 1)) * 1000
+        : ((point.time - minTime) / timeRange) * 1000;
+      const normalizedEnergy = (point.energy || 0) / maxEnergy;
+      const y = 90 - (normalizedEnergy * 80);
+      return `${x},${y}`;
+    }).join(' ');
+  }, [results]);
 
   if (loading) {
     return (
@@ -184,33 +228,16 @@ export default function ResultsScreen({ sessionId, results: propResults, apiBase
                 <h3>Pitch Timeline</h3>
                 <div className="chart">
                   <svg width="100%" height="200" viewBox="0 0 1000 100" preserveAspectRatio="none" className="pitch-chart">
-                    {useMemo(() => {
-                      const pitchData = results.graphs.pitchTimeline || [];
-                      if (pitchData.length === 0) return null;
-
-                      const times = pitchData.map(p => p.time || 0);
-                      const maxTime = Math.max(...times) || 1;
-                      const minTime = Math.min(...times) || 0;
-                      const timeRange = maxTime - minTime;
-                      const useIndex = timeRange < 2;
-
-                      return pitchData.map((point, index) => {
-                        const x = useIndex
-                          ? (index / (pitchData.length - 1 || 1)) * 1000
-                          : ((point.time - minTime) / timeRange) * 1000;
-                        const y = 90 - ((point.score || 0) / 100) * 80;
-                        return (
-                          <circle
-                            key={index}
-                            cx={x}
-                            cy={y}
-                            r="3"
-                            fill="#39ff14"
-                            opacity="0.7"
-                          />
-                        );
-                      });
-                    }, [results])}
+                    {pitchChartPoints?.map((point) => (
+                      <circle
+                        key={point.index}
+                        cx={point.x}
+                        cy={point.y}
+                        r="3"
+                        fill="#39ff14"
+                        opacity="0.7"
+                      />
+                    ))}
                   </svg>
                 </div>
               </div>
@@ -219,36 +246,14 @@ export default function ResultsScreen({ sessionId, results: propResults, apiBase
                 <h3>Energy Graph</h3>
                 <div className="chart">
                   <svg width="100%" height="200" viewBox="0 0 1000 100" preserveAspectRatio="none" className="energy-chart">
-                    {useMemo(() => {
-                      const energyData = results.graphs.energyGraph || [];
-                      if (energyData.length === 0) return null;
-
-                      const times = energyData.map(p => p.time || 0);
-                      const energies = energyData.map(p => p.energy || 0);
-                      const maxTime = Math.max(...times) || 1;
-                      const minTime = Math.min(...times) || 0;
-                      const timeRange = maxTime - minTime;
-                      const maxEnergy = Math.max(...energies) || 1;
-                      const useIndex = timeRange < 2;
-
-                      const points = energyData.map((point, index) => {
-                        const x = useIndex
-                          ? (index / (energyData.length - 1 || 1)) * 1000
-                          : ((point.time - minTime) / timeRange) * 1000;
-                        const normalizedEnergy = (point.energy || 0) / maxEnergy;
-                        const y = 90 - (normalizedEnergy * 80);
-                        return `${x},${y}`;
-                      }).join(' ');
-
-                      return (
-                        <polyline
-                          points={points}
-                          fill="none"
-                          stroke="#ff00e6"
-                          strokeWidth="2"
-                        />
-                      );
-                    }, [results])}
+                    {energyChartPath && (
+                      <polyline
+                        points={energyChartPath}
+                        fill="none"
+                        stroke="#ff00e6"
+                        strokeWidth="2"
+                      />
+                    )}
                   </svg>
                 </div>
               </div>

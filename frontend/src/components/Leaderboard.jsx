@@ -39,6 +39,13 @@ export default function Leaderboard({ apiBase, onBack, onNewSession }) {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }, []);
 
+  // Calculate average score at the top level
+  const averageScore = useMemo(() => {
+    if (leaderboard.length === 0) return 0;
+    const sum = leaderboard.reduce((acc, entry) => acc + entry.total_score, 0);
+    return Math.round(sum / leaderboard.length);
+  }, [leaderboard]);
+
   if (loading) {
     return (
       <div className="leaderboard-container">
@@ -137,11 +144,7 @@ export default function Leaderboard({ apiBase, onBack, onNewSession }) {
         <div className="stat">
           <span className="stat-label">AVERAGE SCORE</span>
           <span className="stat-value">
-            {useMemo(() => {
-              if (leaderboard.length === 0) return 0;
-              const sum = leaderboard.reduce((acc, entry) => acc + entry.total_score, 0);
-              return Math.round(sum / leaderboard.length);
-            }, [leaderboard])}
+            {averageScore}
           </span>
         </div>
       </div>
