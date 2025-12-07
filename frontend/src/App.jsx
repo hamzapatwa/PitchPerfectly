@@ -7,7 +7,8 @@ import LiveHUD from './components/LiveHUD';
 import MicCheck from './components/MicCheck';
 import ResultsScreen from './components/ResultsScreen';
 
-const API_BASE = 'http://localhost:8080';
+// Use current host for API calls (works both locally and on deployed server)
+const API_BASE = window.location.origin;
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('library'); // library, mic-check, karaoke, results

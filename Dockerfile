@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://
 # Build backend
 COPY backend/package*.json /app/backend/
 RUN cd /app/backend && npm ci --omit=dev
+COPY backend/ /app/backend/
 
 # Build frontend
 COPY frontend/package*.json /app/frontend/
